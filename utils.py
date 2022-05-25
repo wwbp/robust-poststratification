@@ -3,6 +3,46 @@ import pandas as pd
 import quantipy as qp
 
 
+def load_data(user_table, population_table):
+    user_df = pd.read_csv(user_table, header=0)
+    population_df = pd.read_csv(population_table, header=0)
+
+    user_df.set_index('cnty', inplace=True)
+    user_df.sort_index(inplace=True)
+    population_df.set_index('cnty', inplace=True)
+    population_df.sort_index(inplace=True)
+    return user_df, population_df
+
+
+def apply_redistribution(user_table, demographics, redist_dem_bins, redist_dem_percents):
+    for dem in demographics:
+        user_data = user_table[dem]
+        redist_bins = redist_dem_bins[dem]
+        redist_percents = redist_dem_percents[dem]
+
+        cumulative_percents = np.cumsum(redist_percents) * 100
+        cumulative_percents[-1] = 100
+        percentiles = np.percentile(user_data, cumulative_percents)
+        bins = [0] + list(percentiles)
+        
+        for redist_min_bin, redist_max_bin, min_bin, max_bin in zip(redist_bins, redist_bins[1:], bins, bins[1:]):
+            redist_max_bin = min(redist_max_bin, 1e9)
+            max_bin = min(max_bin, 1e9)
+            mask = user_data.between(min_bin, max_bin)
+            valid = user_table[mask]
+            user_table.loc[mask, dem] = (redist_max_bin - redist_min_bin) * (valid - min_bin) / (max_bin - min_bin) + redist_min_bin
+    
+    return user_table
+
+
+def bin_demographics(user_table, demographics, user_dem_bins, dem_bins):
+    for dem in demographics:
+        bins = user_dem_bins[dem]
+        labels = dem_bins[dem][:-1]
+        user_table[dem] = pd.cut(user_table[dem], bins=bins, labels=labels, include_lowest=True).astype(int)
+    return user_table
+
+
 def collapse_bins(bin_boundaries, bin_counts, smoothing=0, min_bin_num=0, smooth_before_binning=False, population_percents=[]):
     this_bin_boundaries = list(bin_boundaries)
     this_bin_counts = list(bin_counts)

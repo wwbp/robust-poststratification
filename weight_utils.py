@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import quantipy as qp
 
-import bin_utils
+import utils
 
 
 def create_user_weights(user_data, bins, user_percents, population_percents, dem, smoothing=0, smooth_before_binning=False, uninformed_smoothing=False):
@@ -42,7 +42,7 @@ def create_user_weights(user_data, bins, user_percents, population_percents, dem
 
 
 def create_weights_single(user_data, population_data, dem, smoothing, min_bin_num, smooth_before_binning, uninformed_smoothing, user_bins, population_cols):
-    bins, user_percents, population_percents = bin_utils.get_bins(
+    bins, user_percents, population_percents = utils.get_bins(
         user_data=user_data,
         population_data=population_data,
         dem=dem,
@@ -67,7 +67,7 @@ def create_weights_single(user_data, population_data, dem, smoothing, min_bin_nu
 
 
 def create_weights_rake(user_data, population_data, demographics, smoothing, min_bin_num, smooth_before_binning, uninformed_smoothing, user_dem_bins, population_dem_cols):
-    dataset, user_dem_percents, population_dem_percents = bin_utils.create_banded_dataset(
+    dataset, user_dem_percents, population_dem_percents = utils.create_banded_dataset(
         user_data=user_data,
         population_data=population_data,
         demographics=demographics,
@@ -112,7 +112,7 @@ def create_weights_rake(user_data, population_data, demographics, smoothing, min
     rake_df = pd.DataFrame.from_dict(dataframe_data, orient='index')
     rake_df.columns = columns
     
-    bin_utils.rake(rake_df, population_dem_percents)
+    utils.rake(rake_df, population_dem_percents)
     rake_df.columns = bands + ['perc']
     user_weights = pd.merge(data, rake_df, on=bands)
     user_weights.rename(columns={'perc': 'weight'}, inplace=True)
@@ -121,7 +121,7 @@ def create_weights_rake(user_data, population_data, demographics, smoothing, min
 
 
 def create_weights_naive(user_data, population_data, demographics, smoothing, min_bin_num, smooth_before_binning, uninformed_smoothing, user_dem_bins, population_dem_cols):
-    dataset, user_dem_percents, population_dem_percents = bin_utils.create_banded_dataset(
+    dataset, user_dem_percents, population_dem_percents = utils.create_banded_dataset(
         user_data=user_data,
         population_data=population_data,
         demographics=demographics,

@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import quantipy as qp
 
-import bin_utils
+import utils
 import weight_utils
 
 
@@ -70,46 +70,6 @@ POPULATION_TABLE = './data/acs2015_5yr_age_gender_income_education.csv'
 OUTPUT = './data/weights.csv'
 
 
-def load_data(user_table, population_table):
-    user_df = pd.read_csv(user_table, header=0)
-    population_df = pd.read_csv(population_table, header=0)
-
-    user_df.set_index('cnty', inplace=True)
-    user_df.sort_index(inplace=True)
-    population_df.set_index('cnty', inplace=True)
-    population_df.sort_index(inplace=True)
-    return user_df, population_df
-
-
-def apply_redistribution(user_table, demographics, redist_dem_bins, redist_dem_percents):
-    for dem in demographics:
-        user_data = user_table[dem]
-        redist_bins = redist_dem_bins[dem]
-        redist_percents = redist_dem_percents[dem]
-
-        cumulative_percents = np.cumsum(redist_percents) * 100
-        cumulative_percents[-1] = 100
-        percentiles = np.percentile(user_data, cumulative_percents)
-        bins = [0] + list(percentiles)
-        
-        for redist_min_bin, redist_max_bin, min_bin, max_bin in zip(redist_bins, redist_bins[1:], bins, bins[1:]):
-            redist_max_bin = min(redist_max_bin, 1e9)
-            max_bin = min(max_bin, 1e9)
-            mask = user_data.between(min_bin, max_bin)
-            valid = user_table[mask]
-            user_table.loc[mask, dem] = (redist_max_bin - redist_min_bin) * (valid - min_bin) / (max_bin - min_bin) + redist_min_bin
-    
-    return user_table
-
-
-def bin_demographics(user_table, demographics):
-    for dem in demographics:
-        bins = USER_BINS[dem]
-        labels = BINS[dem][:-1]
-        user_table[dem] = pd.cut(user_table[dem], bins=bins, labels=labels, include_lowest=True).astype(int)
-    return user_table
-
-
 def main():
     print(f'CREATING WEIGHTS FOR: {DEMOGRAPHICS}')
     print(f'    WITH SMOOTHING K = {SMOOTHING}')
@@ -128,12 +88,12 @@ def main():
         sys.exit('ERROR: output file already exists')
 
     print('Loading Data')
-    user_df, population_df = load_data(USER_TABLE, POPULATION_TABLE)
+    user_df, population_df = utils.load_data(USER_TABLE, POPULATION_TABLE)
     if REDISTRIBUTION:
         print('Performing Redistribution')
-        user_df = apply_redistribution(user_df, DEMOGRAPHICS, REDIST_BINS, REDIST_PERCENTS)
+        user_df = utils.apply_redistribution(user_df, DEMOGRAPHICS, REDIST_BINS, REDIST_PERCENTS)
     print('Performing Binning')
-    user_df = bin_demographics(user_df, DEMOGRAPHICS)
+    user_df = utils.bin_demographics(user_df, DEMOGRAPHICS, USER_BINS, BINS)
 
     cnty_list = user_df.index.unique().tolist()
     cnty_list.sort()
