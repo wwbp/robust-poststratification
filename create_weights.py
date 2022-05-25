@@ -55,15 +55,16 @@ REDIST_PERCENTS = {
 # DEMOGRAPHICS = ['income']
 # DEMOGRAPHICS = ['age', 'gender']
 DEMOGRAPHICS = ['income', 'education']
-# DEMOGRAPHICS = ['age', 'income', 'gender', 'education']
+# DEMOGRAPHICS = ['age', 'income', 'education']
+# DEMOGRAPHICS = ['age', 'gender', 'income', 'education']
 
-SMOOTHING = 10
-MIN_BIN_NUM = 50
+SMOOTHING = 0
+MIN_BIN_NUM = 0
 
 UNINFORMED_SMOOTHING = False
 SMOOTH_BEFORE_BINNING = False
 REDISTRIBUTION = False
-NAIVE = True
+NAIVE = False
 
 USER_TABLE = './data/users_en_30_10pct.csv'
 POPULATION_TABLE = './data/acs2015_5yr_age_gender_income_education.csv'
