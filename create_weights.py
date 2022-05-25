@@ -91,9 +91,9 @@ def bin_demographics(user_table, demographics):
 
 
 def main():
-    print('CREATING WEIGHTS FOR:', DEMOGRAPHICS)
-    print('    WITH SMOOTHING K =', SMOOTHING)
-    print('    WITH MIN BIN NUM =', MIN_BIN_NUM)
+    print(f'CREATING WEIGHTS FOR: {DEMOGRAPHICS}')
+    print(f'    WITH SMOOTHING K = {SMOOTHING}')
+    print(f'    WITH MIN BIN NUM = {MIN_BIN_NUM}')
 
     if UNINFORMED_SMOOTHING:
         print('    WITH UNINFORMED SMOOTHING')
@@ -112,7 +112,7 @@ def main():
 
     cnty_list = user_df.index.unique().tolist()
     cnty_list.sort()
-    print('Number of counties:', len(cnty_list))
+    print(f'Number of counties: {len(cnty_list)}')
 
     for count, cnty in enumerate(cnty_list[:3], start=1):
         print(f'Processing county: {cnty} [{count} / {len(cnty_list)}]')
@@ -120,7 +120,7 @@ def main():
         try:
             population_data = population_df.loc[cnty]
         except:
-            print('    SKIPPING: population table does not contain county', cnty)
+            print(f'    SKIPPING: population table does not contain county {cnty}')
             continue
         user_data = user_df.loc[cnty]
 

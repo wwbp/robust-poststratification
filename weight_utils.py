@@ -70,10 +70,9 @@ def create_weights_single(user_data, population_data, dem, smoothing, min_bin_nu
 def create_banded_dataset(user_data, population_data, demographics, smoothing, min_bin_num, smooth_before_binning, user_dem_bins, population_dem_cols):
     dataset = qp.DataSet(name="_".join(demographics)+'_dataset', dimensions_comp=False)
 
-    all_targets = {}
-    all_bands = {}
-    all_population_dems = {}
-    all_sample_dems = {}
+    bands = {}
+    user_dem_percents = {}
+    population_dem_percents = {}
 
     for dem in demographics:
         bins, user_percents, population_percents = bin_utils.get_bins(
@@ -89,22 +88,21 @@ def create_banded_dataset(user_data, population_data, demographics, smoothing, m
 
         band = [(bins[i], bins[i + 1] - 1) for i in range(len(bins[:-1]))]
         band[-1] = (bins[-2], bins[-1])
-        all_bands[dem] = band
+        bands[dem] = band
 
-        all_sample_dems[dem] = {i+1:perc for i, perc in enumerate(user_percents)}
-        all_population_dems[dem] = {i+1:perc for i, perc in enumerate(population_percents)}
-        all_targets[dem + '_banded'] = {i+1:perc for i, perc in enumerate(population_percents)}
+        user_dem_percents[dem] = {i+1:perc for i, perc in enumerate(user_percents)}
+        population_dem_percents[dem] = {i+1:perc for i, perc in enumerate(population_percents)}
 
     dataset.from_components(user_data[['user_id'] + demographics])
 
-    for dem in all_bands:
-        dataset.band(dem, all_bands[dem])
+    for band in bands:
+        dataset.band(band, bands[band])
 
-    return dataset, all_population_dems, all_targets
+    return dataset, user_dem_percents, population_dem_percents
 
 
 def create_weights_rake(user_data, population_data, demographics, smoothing, min_bin_num, smooth_before_binning, uninformed_smoothing, user_dem_bins, population_dem_cols):
-    dataset, all_population_dems, all_targets = create_banded_dataset(
+    dataset, user_dem_percents, population_dem_percents = create_banded_dataset(
         user_data=user_data,
         population_data=population_data,
         demographics=demographics,
@@ -121,9 +119,9 @@ def create_weights_rake(user_data, population_data, demographics, smoothing, min
 
     bands = [dem + '_banded' for dem in demographics]
     group_dict = data.groupby(bands).agg(['count'])['user_id'].to_dict()['count']
-    sorted_keys = list(product(*[all_population_dems[d].keys() for d in demographics]))
+    sorted_keys = list(product(*[population_dem_percents[dem].keys() for dem in demographics]))
     total_twitter_users = float(data.shape[0])
-    naive_percentages = {key: np.prod([all_population_dems[d][k] for d, k in zip(demographics, key)]) / (100 ** len(demographics)) for key in sorted_keys}
+    naive_percentages = {key: np.prod([population_dem_percents[dem][k] for dem, k in zip(demographics, key)]) / (100 ** len(demographics)) for key in sorted_keys}
 
     for i, key in enumerate(sorted_keys):
         if key in group_dict:
@@ -149,16 +147,16 @@ def create_weights_rake(user_data, population_data, demographics, smoothing, min
     rake_df = pd.DataFrame.from_dict(dataframe_data, orient='index')
     rake_df.columns = columns
     
-    rake_utils.rake(rake_df, all_population_dems)
-    rake_df.columns = [d + '_banded' for d in demographics] + ['perc']
-    user_weights = pd.merge(data, rake_df, on=[d + '_banded' for d in demographics])
+    rake_utils.rake(rake_df, population_dem_percents)
+    rake_df.columns = bands + ['perc']
+    user_weights = pd.merge(data, rake_df, on=bands)
     user_weights.rename(columns={'perc': 'weight'}, inplace=True)
 
     return user_weights
 
 
 def create_weights_naive(user_data, population_data, demographics, smoothing, min_bin_num, smooth_before_binning, uninformed_smoothing, user_dem_bins, population_dem_cols):
-    dataset, all_population_dems, all_targets = create_banded_dataset(
+    dataset, user_dem_percents, population_dem_percents = create_banded_dataset(
         user_data=user_data,
         population_data=population_data,
         demographics=demographics,
@@ -174,7 +172,7 @@ def create_weights_naive(user_data, population_data, demographics, smoothing, mi
     combined_targets = {'naive_banded': {}}
     bands = [dem + '_banded' for dem in demographics]
     group_dict = data.groupby(bands).agg(['count'])['user_id'].to_dict()
-    sorted_keys = list(product(*[all_population_dems[d].keys() for d in demographics]))
+    sorted_keys = list(product(*[population_dem_percents[dem].keys() for dem in demographics]))
 
     i = 0
     skipped = False
@@ -186,8 +184,8 @@ def create_weights_naive(user_data, population_data, demographics, smoothing, mi
 
         prod = 1
         query = []
-        for k, band in zip(key, bands):
-            prod += all_targets[band][k]
+        for k, dem, band in zip(key, demographics, bands):
+            prod *= population_dem_percents[dem][k]
             query.append(f'{band} == {k}')
         combined_targets['naive_banded'][i + 1] = prod
         data.loc[data.eval(' and '.join(query)), 'naive_banded'] = i + 1
@@ -202,8 +200,8 @@ def create_weights_naive(user_data, population_data, demographics, smoothing, mi
     sorted_targets = [combined_targets['naive_banded'][kkey] for kkey in sorted_bins]
     sorted_sample_targets = data.groupby(['naive_banded']).agg(['count'])['user_id'].to_dict()['count']
     t = float(sum(sorted_sample_targets.values()))
-    sorted_sample_targets = {kkey:v/t for kkey,v in sorted_sample_targets.items()}
-    sorted_sample_targets = [sorted_sample_targets[kkey] for kkey in sorted_bins]
+    sorted_sample_targets = {k: v / t for k, v in sorted_sample_targets.items()}
+    sorted_sample_targets = [sorted_sample_targets[key] for key in sorted_bins]
 
     user_weights = create_weights(
         user_data=data,

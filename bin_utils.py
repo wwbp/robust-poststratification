@@ -5,8 +5,10 @@ import pandas as pd
 def collapse_bins(bin_boundaries, bin_counts, smoothing=0, min_bin_num=0, smooth_before_binning=False, population_percents=[]):
     this_bin_boundaries = list(bin_boundaries)
     this_bin_counts = list(bin_counts)
+
     if smooth_before_binning:
         this_bin_counts = [bc + smoothing * population_percents[bc_idx] for bc_idx, bc in enumerate(this_bin_counts)]
+
     while True:
         if len(this_bin_counts) <= 1 or all(p >= min_bin_num for p in this_bin_counts):
             break
@@ -37,11 +39,12 @@ def collapse_bins(bin_boundaries, bin_counts, smoothing=0, min_bin_num=0, smooth
     return this_bin_boundaries, this_bin_counts
 
 
-def get_population_percents(population_data, dem, population_table_cols, user_dem_bins, bins):
+def get_population_percents(population_data, population_table_cols, user_dem_bins, bins):
     if len(bins) < 3:
         return np.array([1])
 
-    if dem in ('gender', 'education'):
+    if len(population_table_cols) == 2:
+        # binary demographic
         return population_data[population_table_cols].tolist()
     else:
         percents = []
@@ -69,12 +72,12 @@ def get_bins(user_data, population_data, dem, population_table_cols, user_dem_bi
 
     # get percentages
     user_percents = np.array([x / len(values) for x in bins_counts])
-    population_percents = get_population_percents(population_data, dem, population_table_cols, user_dem_bins, bins)
+    population_percents = get_population_percents(population_data, population_table_cols, user_dem_bins, bins)
 
     # recalculate if smooth before binning
     if smooth_before_binning:
         bins, bins_counts = collapse_bins(bins, bins_counts, smoothing, min_bin_num, smooth_before_binning, population_percents)
-        population_percents = get_population_percents(population_data, dem, population_table_cols, user_dem_bins, bins)
+        population_percents = get_population_percents(population_data, population_table_cols, user_dem_bins, bins)
 
     return bins, user_percents, population_percents
 
