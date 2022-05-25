@@ -8,7 +8,7 @@ import pandas as pd
 import quantipy as qp
 
 import utils
-import weight_utils
+import weights
 
 
 BINS = {
@@ -74,7 +74,6 @@ def main():
     print(f'CREATING WEIGHTS FOR: {DEMOGRAPHICS}')
     print(f'    WITH SMOOTHING K = {SMOOTHING}')
     print(f'    WITH MIN BIN NUM = {MIN_BIN_NUM}')
-
     if UNINFORMED_SMOOTHING:
         print('    WITH UNINFORMED SMOOTHING')
     if SMOOTH_BEFORE_BINNING:
@@ -84,8 +83,14 @@ def main():
     if REDISTRIBUTION:
         print('    WITH REDISTRIBUTION')
 
+    # ensure existing file is not overwritten
     if os.path.exists(OUTPUT):
         sys.exit('ERROR: output file already exists')
+
+    # create csv header
+    with open(OUTPUT, 'w') as f:
+        writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(['user_id', 'cnty', 'weight'])
 
     print('Loading Data')
     user_df, population_df = utils.load_data(USER_TABLE, POPULATION_TABLE)
@@ -112,7 +117,7 @@ def main():
         if len(DEMOGRAPHICS) == 1:
             # single correction factor
             dem = DEMOGRAPHICS[0]
-            user_weights = weight_utils.create_weights_single(
+            user_weights = weights.create_weights_single(
                 user_data=user_data,
                 population_data=population_data,
                 dem=dem,
@@ -125,7 +130,7 @@ def main():
             )
         elif not NAIVE:
             # raking
-            user_weights = weight_utils.create_weights_rake(
+            user_weights = weights.create_weights_rake(
                 user_data=user_data,
                 population_data=population_data,
                 demographics=DEMOGRAPHICS,
@@ -138,7 +143,7 @@ def main():
             )
         else:
             # naive post-stratification
-            user_weights = weight_utils.create_weights_naive(
+            user_weights = weights.create_weights_naive(
                 user_data=user_data,
                 population_data=population_data,
                 demographics=DEMOGRAPHICS,
@@ -150,14 +155,11 @@ def main():
                 population_dem_cols=POPULATION_TABLE_COLS,
             )
 
-
         # write weights to output file
-        # with open(OUTPUT, 'a') as f:
-        #     writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
-        #     user_ids = user_weights['user_id'].tolist()
-        #     weights = user_weights['weight'].tolist()
-        #     for i in range(len(user_ids)):
-        #         writer.writerow([user_ids[i], cnty, weights[i]])
+        with open(OUTPUT, 'a') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+            for index, row in user_weights.iterrows():
+                writer.writerow([int(row['user_id']), cnty, row['weight']])
 
 
 
