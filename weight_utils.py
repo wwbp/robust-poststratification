@@ -4,11 +4,10 @@ import numpy as np
 import pandas as pd
 import quantipy as qp
 
-import rake_utils
 import bin_utils
 
 
-def create_weights(user_data, bins, user_percents, population_percents, dem, smoothing=0, smooth_before_binning=False, uninformed_smoothing=False):
+def create_user_weights(user_data, bins, user_percents, population_percents, dem, smoothing=0, smooth_before_binning=False, uninformed_smoothing=False):
     total_twitter = user_data.shape[0]
     ii = len(bins) - 2
     if len(population_percents) == 1 and population_percents[0] == 1:
@@ -53,7 +52,7 @@ def create_weights_single(user_data, population_data, dem, smoothing, min_bin_nu
         min_bin_num=min_bin_num,
         smooth_before_binning=smooth_before_binning,
     )
-    user_weights = create_weights(
+    user_weights = create_user_weights(
         user_data=user_data,
         bins=bins,
         user_percents=user_percents,
@@ -67,42 +66,8 @@ def create_weights_single(user_data, population_data, dem, smoothing, min_bin_nu
     return user_weights
 
 
-def create_banded_dataset(user_data, population_data, demographics, smoothing, min_bin_num, smooth_before_binning, user_dem_bins, population_dem_cols):
-    dataset = qp.DataSet(name="_".join(demographics)+'_dataset', dimensions_comp=False)
-
-    bands = {}
-    user_dem_percents = {}
-    population_dem_percents = {}
-
-    for dem in demographics:
-        bins, user_percents, population_percents = bin_utils.get_bins(
-            user_data=user_data,
-            population_data=population_data,
-            dem=dem,
-            population_table_cols=population_dem_cols[dem],
-            user_dem_bins=user_dem_bins[dem],
-            smoothing=smoothing,
-            min_bin_num=min_bin_num,
-            smooth_before_binning=smooth_before_binning,
-        )
-
-        band = [(bins[i], bins[i + 1] - 1) for i in range(len(bins[:-1]))]
-        band[-1] = (bins[-2], bins[-1])
-        bands[dem] = band
-
-        user_dem_percents[dem] = {i+1:perc for i, perc in enumerate(user_percents)}
-        population_dem_percents[dem] = {i+1:perc for i, perc in enumerate(population_percents)}
-
-    dataset.from_components(user_data[['user_id'] + demographics])
-
-    for band in bands:
-        dataset.band(band, bands[band])
-
-    return dataset, user_dem_percents, population_dem_percents
-
-
 def create_weights_rake(user_data, population_data, demographics, smoothing, min_bin_num, smooth_before_binning, uninformed_smoothing, user_dem_bins, population_dem_cols):
-    dataset, user_dem_percents, population_dem_percents = create_banded_dataset(
+    dataset, user_dem_percents, population_dem_percents = bin_utils.create_banded_dataset(
         user_data=user_data,
         population_data=population_data,
         demographics=demographics,
@@ -147,7 +112,7 @@ def create_weights_rake(user_data, population_data, demographics, smoothing, min
     rake_df = pd.DataFrame.from_dict(dataframe_data, orient='index')
     rake_df.columns = columns
     
-    rake_utils.rake(rake_df, population_dem_percents)
+    bin_utils.rake(rake_df, population_dem_percents)
     rake_df.columns = bands + ['perc']
     user_weights = pd.merge(data, rake_df, on=bands)
     user_weights.rename(columns={'perc': 'weight'}, inplace=True)
@@ -156,7 +121,7 @@ def create_weights_rake(user_data, population_data, demographics, smoothing, min
 
 
 def create_weights_naive(user_data, population_data, demographics, smoothing, min_bin_num, smooth_before_binning, uninformed_smoothing, user_dem_bins, population_dem_cols):
-    dataset, user_dem_percents, population_dem_percents = create_banded_dataset(
+    dataset, user_dem_percents, population_dem_percents = bin_utils.create_banded_dataset(
         user_data=user_data,
         population_data=population_data,
         demographics=demographics,
@@ -203,7 +168,7 @@ def create_weights_naive(user_data, population_data, demographics, smoothing, mi
     sorted_sample_targets = {k: v / t for k, v in sorted_sample_targets.items()}
     sorted_sample_targets = [sorted_sample_targets[key] for key in sorted_bins]
 
-    user_weights = create_weights(
+    user_weights = create_user_weights(
         user_data=data,
         bins=sorted_bins,
         user_percents=sorted_sample_targets,
