@@ -2,7 +2,6 @@ from itertools import product
 
 import numpy as np
 import pandas as pd
-import quantipy as qp
 
 import utils
 

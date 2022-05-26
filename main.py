@@ -5,7 +5,6 @@ import sys
 
 import numpy as np
 import pandas as pd
-import quantipy as qp
 
 import utils
 import weights
@@ -71,34 +70,68 @@ OUTPUT = './data/weights.csv'
 
 
 def main():
-    print(f'CREATING WEIGHTS FOR: {DEMOGRAPHICS}')
-    print(f'    WITH SMOOTHING K = {SMOOTHING}')
-    print(f'    WITH MIN BIN NUM = {MIN_BIN_NUM}')
-    if UNINFORMED_SMOOTHING:
+    
+    # parse arguments
+    parser = argparse.ArgumentParser(description='Create Robust post-stratification weights.')
+
+    # correction factors
+    parser.add_argument('--demographics', type=str, metavar='FIELD(S)', dest='demographics', 
+        nargs='+', default=DEMOGRAPHICS, help='Fields to compare with.')
+
+    # parameters
+    parser.add_argument('--minimum_bin_threshold', dest='minimum_bin_threshold', type=int, 
+        default=MIN_BIN_NUM, help='Set the minimum bin threshold. Default {d}'.format(d=MIN_BIN_NUM))
+    parser.add_argument('--smoothing_k', dest='smoothing_k', type=int, 
+        default=SMOOTHING, help='Set the smoothing constant. Default {d}'.format(d=SMOOTHING))
+    
+    # non-standard analyses
+    parser.add_argument('--naive_poststrat', action='store_true', dest='naive_poststrat', 
+        default=NAIVE, help='Apply naive post-stratification.')
+    parser.add_argument('--smooth_before_binning', action='store_true', dest='smooth_before_binning', 
+        default=SMOOTH_BEFORE_BINNING, help='Apply smoothing before binning.')
+    parser.add_argument('--uninformed_smoothing', action='store_true', dest='uninformed_smoothing', 
+        default=UNINFORMED_SMOOTHING, help='Apply uninformed smoothing.')
+    parser.add_argument('--redistribution', action='store_true', dest='redistribution', 
+        default=REDISTRIBUTION, help='Apply Estimator redistribution.')
+
+    # input and output files
+    parser.add_argument('--user_table', dest='user_table', type=str, default=USER_TABLE,
+        help='User data csv. Default: {d}'.format(default=USER_TABLE))
+    parser.add_argument('--population_data', dest='population_data', type=str, default=POPULATION_TABLE,
+        help='Population data csv. Default: {d}'.format(default=POPULATION_TABLE))
+    parser.add_argument('--output', dest='output', type=str, default=OUTPUT,
+        help='Output file. Default: {d}'.format(default=OUTPUT))
+
+    args = parser.parse_args()
+
+    print(f'CREATING WEIGHTS FOR: {args.demographics}')
+    print(f'    WITH SMOOTHING K = {args.smoothing_k}')
+    print(f'    WITH MIN BIN NUM = {args.minimum_bin_threshold}')
+    if args.uninformed_smoothing:
         print('    WITH UNINFORMED SMOOTHING')
-    if SMOOTH_BEFORE_BINNING:
+    if args.smooth_before_binning:
         print('    WITH SMOOTH BEFORE BINNING')
-    if NAIVE:
+    if args.naive_poststrat:
         print('    WITH NAIVE POST-STRATIFICATION')
-    if REDISTRIBUTION:
+    if args.redistribution:
         print('    WITH REDISTRIBUTION')
 
     # ensure existing file is not overwritten
-    if os.path.exists(OUTPUT):
+    if os.path.exists(args.output):
         sys.exit('ERROR: output file already exists')
 
     # create csv header
-    with open(OUTPUT, 'w') as f:
+    with open(args.output, 'w') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         writer.writerow(['user_id', 'cnty', 'weight'])
 
     print('Loading Data')
-    user_df, population_df = utils.load_data(USER_TABLE, POPULATION_TABLE)
-    if REDISTRIBUTION:
+    user_df, population_df = utils.load_data(args.user_table, args.population_data)
+    if args.redistribution:
         print('Performing Redistribution')
-        user_df = utils.apply_redistribution(user_df, DEMOGRAPHICS, REDIST_BINS, REDIST_PERCENTS)
+        user_df = utils.apply_redistribution(user_df, args.demographics, REDIST_BINS, REDIST_PERCENTS)
     print('Performing Binning')
-    user_df = utils.bin_demographics(user_df, DEMOGRAPHICS, USER_BINS, BINS)
+    user_df = utils.bin_demographics(user_df, args.demographics, USER_BINS, BINS)
 
     cnty_list = user_df.index.unique().tolist()
     cnty_list.sort()
@@ -114,30 +147,30 @@ def main():
             continue
         user_data = user_df.loc[cnty]
 
-        if len(DEMOGRAPHICS) == 1:
+        if len(args.demographics) == 1:
             # single correction factor
-            dem = DEMOGRAPHICS[0]
+            dem = args.demographics[0]
             user_weights = weights.create_weights_single(
                 user_data=user_data,
                 population_data=population_data,
                 dem=dem,
-                smoothing=SMOOTHING,
-                min_bin_num=MIN_BIN_NUM,
-                smooth_before_binning=SMOOTH_BEFORE_BINNING,
-                uninformed_smoothing=UNINFORMED_SMOOTHING,
+                smoothing=args.smoothing_k,
+                min_bin_num=args.minimum_bin_threshold,
+                smooth_before_binning=args.smooth_before_binning,
+                uninformed_smoothing=args.uninformed_smoothing,
                 user_bins=BINS[dem],
                 population_cols=POPULATION_TABLE_COLS[dem],
             )
-        elif not NAIVE:
+        elif not args.naive_poststrat:
             # raking
             user_weights = weights.create_weights_rake(
                 user_data=user_data,
                 population_data=population_data,
-                demographics=DEMOGRAPHICS,
-                smoothing=SMOOTHING,
-                min_bin_num=MIN_BIN_NUM,
-                smooth_before_binning=SMOOTH_BEFORE_BINNING,
-                uninformed_smoothing=UNINFORMED_SMOOTHING,
+                demographics=args.demographics,
+                smoothing=args.smoothing_k,
+                min_bin_num=args.minimum_bin_threshold,
+                smooth_before_binning=args.smooth_before_binning,
+                uninformed_smoothing=args.uninformed_smoothing,
                 user_dem_bins=BINS,
                 population_dem_cols=POPULATION_TABLE_COLS,
             )
@@ -146,17 +179,17 @@ def main():
             user_weights = weights.create_weights_naive(
                 user_data=user_data,
                 population_data=population_data,
-                demographics=DEMOGRAPHICS,
-                smoothing=SMOOTHING,
-                min_bin_num=MIN_BIN_NUM,
-                smooth_before_binning=SMOOTH_BEFORE_BINNING,
-                uninformed_smoothing=UNINFORMED_SMOOTHING,
+                demographics=args.demographics,
+                smoothing=args.smoothing_k,
+                min_bin_num=args.minimum_bin_threshold,
+                smooth_before_binning=args.smooth_before_binning,
+                uninformed_smoothing=args.uninformed_smoothing,
                 user_dem_bins=BINS,
                 population_dem_cols=POPULATION_TABLE_COLS,
             )
 
         # write weights to output file
-        with open(OUTPUT, 'a') as f:
+        with open(args.output, 'a') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
             for index, row in user_weights.iterrows():
                 writer.writerow([int(row['user_id']), cnty, row['weight']])
