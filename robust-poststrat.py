@@ -62,57 +62,61 @@ MIN_BIN_NUM = 0
 UNINFORMED_SMOOTHING = False
 SMOOTH_BEFORE_BINNING = False
 REDISTRIBUTION = True
-NAIVE = False
+NAIVE_POSTSTRAT = False
 
 USER_TABLE = './data/users_en_30_10pct.csv'
 POPULATION_TABLE = './data/acs2015_5yr_age_gender_income_education.csv'
 OUTPUT = './data/weights.csv'
 
 
-def main():
-    
-    # parse arguments
+def get_args():
     parser = argparse.ArgumentParser(description='Create Robust post-stratification weights.')
 
     # correction factors
-    parser.add_argument('--demographics', type=str, metavar='FIELD(S)', dest='demographics', 
-        nargs='+', default=DEMOGRAPHICS, help='Fields to compare with.')
+    parser.add_argument('--demographics', type=str, metavar='FIELD(S)', dest='demographics', nargs='+',
+        default=DEMOGRAPHICS, help='Fields to compare with.')
 
     # parameters
-    parser.add_argument('--minimum_bin_threshold', dest='minimum_bin_threshold', type=int, 
+    parser.add_argument('--minimum_bin_threshold', dest='minimum_bin_threshold', type=int,
         default=MIN_BIN_NUM, help='Set the minimum bin threshold. Default {d}'.format(d=MIN_BIN_NUM))
-    parser.add_argument('--smoothing_k', dest='smoothing_k', type=int, 
+    parser.add_argument('--smoothing_k', dest='smoothing_k', type=int,
         default=SMOOTHING, help='Set the smoothing constant. Default {d}'.format(d=SMOOTHING))
-    
+
     # non-standard analyses
-    parser.add_argument('--naive_poststrat', action='store_true', dest='naive_poststrat', 
-        default=NAIVE, help='Apply naive post-stratification.')
-    parser.add_argument('--smooth_before_binning', action='store_true', dest='smooth_before_binning', 
+    parser.add_argument('--naive_poststrat', action='store_true', dest='naive_poststrat',
+        default=NAIVE_POSTSTRAT, help='Apply naive post-stratification.')
+    parser.add_argument('--smooth_before_binning', action='store_true', dest='smooth_before_binning',
         default=SMOOTH_BEFORE_BINNING, help='Apply smoothing before binning.')
-    parser.add_argument('--uninformed_smoothing', action='store_true', dest='uninformed_smoothing', 
+    parser.add_argument('--uninformed_smoothing', action='store_true', dest='uninformed_smoothing',
         default=UNINFORMED_SMOOTHING, help='Apply uninformed smoothing.')
-    parser.add_argument('--redistribution', action='store_true', dest='redistribution', 
+    parser.add_argument('--redistribution', action='store_true', dest='redistribution',
         default=REDISTRIBUTION, help='Apply Estimator redistribution.')
 
     # input and output files
     parser.add_argument('--user_table', dest='user_table', type=str, default=USER_TABLE,
-        help='User data csv. Default: {d}'.format(default=USER_TABLE))
+        help='User data csv. Default: {d}'.format(d=USER_TABLE))
     parser.add_argument('--population_data', dest='population_data', type=str, default=POPULATION_TABLE,
-        help='Population data csv. Default: {d}'.format(default=POPULATION_TABLE))
+        help='Population data csv. Default: {d}'.format(d=POPULATION_TABLE))
     parser.add_argument('--output', dest='output', type=str, default=OUTPUT,
-        help='Output file. Default: {d}'.format(default=OUTPUT))
+        help='Output file. Default: {d}'.format(d=OUTPUT))
 
     args = parser.parse_args()
+    return args
 
-    print(f'CREATING WEIGHTS FOR: {args.demographics}')
-    print(f'    WITH SMOOTHING K = {args.smoothing_k}')
-    print(f'    WITH MIN BIN NUM = {args.minimum_bin_threshold}')
+
+def main(args):
+    print('CREATING WEIGHTS FOR: {d}'.format(d=args.demographics))
+    print('    WITH SMOOTHING K = {d}'.format(d=args.smoothing_k))
+    print('    WITH MIN BIN NUM = {d}'.format(d=args.minimum_bin_threshold))
     if args.uninformed_smoothing:
         print('    WITH UNINFORMED SMOOTHING')
     if args.smooth_before_binning:
         print('    WITH SMOOTH BEFORE BINNING')
-    if args.naive_poststrat:
-        print('    WITH NAIVE POST-STRATIFICATION')
+    if len(args.demographics) > 1:
+        if args.naive_poststrat:
+            print('    WITH NAIVE POST-STRATIFICATION')
+        else:
+            print('    WITH RAKING')
     if args.redistribution:
         print('    WITH REDISTRIBUTION')
 
@@ -120,7 +124,7 @@ def main():
     if os.path.exists(args.output):
         sys.exit('ERROR: output file already exists')
 
-    # create csv header
+    # initialize output csv with header
     with open(args.output, 'w') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         writer.writerow(['user_id', 'cnty', 'weight'])
@@ -135,15 +139,16 @@ def main():
 
     cnty_list = user_df.index.unique().tolist()
     cnty_list.sort()
-    print(f'Number of counties: {len(cnty_list)}')
+    size = len(cnty_list)
+    print('Number of counties: {d}'.format(d=size))
 
     for count, cnty in enumerate(cnty_list, start=1):
-        print(f'== Processing county: {cnty} [{count} / {len(cnty_list)}] ==')
+        print('== Processing county: {cnty} [{count} / {size}] =='.format(cnty=cnty, count=count, size=size))
 
         try:
             population_data = population_df.loc[cnty]
         except:
-            print(f'    SKIPPING: population table does not contain county {cnty}')
+            print('    SKIPPING: population table does not contain county {d}'.format(d=cnty))
             continue
         user_data = user_df.loc[cnty]
 
@@ -197,4 +202,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    args = get_args()
+    main(args)
